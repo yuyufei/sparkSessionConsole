@@ -1,5 +1,6 @@
 package cn.com.pander.spark;
 
+import java.util.Date;
 import java.util.Iterator;
 
 import org.apache.spark.SparkConf;
@@ -18,6 +19,7 @@ import com.alibaba.fastjson.JSONObject;
 import cn.com.pander.bean.Task;
 import cn.com.pander.constant.Constants;
 import cn.com.pander.test.MockData;
+import cn.com.pander.utils.DateUtils;
 import cn.com.pander.utils.ParamUtils;
 import cn.com.pander.utils.StringUtils;
 import cn.com.pander.utils.ValidUtils;
@@ -32,8 +34,8 @@ public class UserVisitSessionConsole {
 		Task task =new Task();
 		JSONObject taskParam=JSONObject.parseObject(task.getTaskParam());
 		MockData.mock(sc, sqlContext);
-		String startDate="2018-05-29";
-		String endDate="2018-05-29";
+		String startDate=DateUtils.foramtDate(new Date());
+		String endDate=DateUtils.foramtDate(new Date());
 		String querySql="select * "
 				+ "from user_visit_action "
 				+ "where date>='" + startDate + "' "
@@ -41,11 +43,15 @@ public class UserVisitSessionConsole {
 		Dataset<Row> ds= sqlContext.sql(querySql);
 		System.out.println("---------------------------查询出的数据--------------------------------");
 		ds.show();
+		//得到生成的session基础数据，包含搜索行为、点击行为、订单行为、支付行为
 		JavaRDD<Row> rdd1=ds.javaRDD();
+		//得到变换的聚合后的rdd，key：sessionid  value：一个session内的各个行为和用户信息
 		JavaPairRDD<String, String> sessionid2AggrInfoRDD = 
 				aggregateBuSession(sqlContext, rdd1);
+		System.out.println("--------------------sessionid的数量-----------------------"+sessionid2AggrInfoRDD.count());
 		JavaPairRDD<String, String> fileteredSessionid2AggrInfoRDD=
 				filterSession(sessionid2AggrInfoRDD,taskParam);
+		System.out.println("--------------------筛选完后sessionid的数量-----------------------"+fileteredSessionid2AggrInfoRDD.count());
 		sc.close();
 		
 	}
