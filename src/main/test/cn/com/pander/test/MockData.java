@@ -41,7 +41,7 @@ public class MockData {
 					String actionTime
 					     = baseActionTime+":"+StringUtils.fulfuill(String.valueOf(random.nextInt(59))) + ":" + StringUtils.fulfuill(String.valueOf(random.nextInt(59)));
 					String searchKeyword = null;
-					Long clickCategoryId = null;
+					Long clickCategoryId = 1l;
 					Long clickProductId = null;
 					String orderCategoryIds = null;
 					String orderProductIds = null;
