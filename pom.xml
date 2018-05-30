@@ -49,6 +49,14 @@
             <scope>provided</scope>
         </dependency>
 
+<!-- https://mvnrepository.com/artifact/org.apache.kafka/kafka -->
+<dependency>
+    <groupId>org.apache.kafka</groupId>
+    <artifactId>kafka_2.11</artifactId>
+    <version>0.9.0.1</version>
+</dependency>
+
+
 
     </dependencies>
   

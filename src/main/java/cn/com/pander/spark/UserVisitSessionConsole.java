@@ -30,6 +30,7 @@ public class UserVisitSessionConsole {
 		SparkConf conf=new SparkConf()
 				.setMaster("local[4]").setAppName("userVisitSessionConsole");
 		JavaSparkContext sc=new JavaSparkContext(conf);
+		SessionAggrStatAccumulator accumulator=new SessionAggrStatAccumulator();
 		SQLContext sqlContext=SparkSession.builder().config(conf).getOrCreate().sqlContext();
 		Task task =new Task();
 		JSONObject taskParam=JSONObject.parseObject(task.getTaskParam());
