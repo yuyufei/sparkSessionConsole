@@ -2,10 +2,11 @@ package cn.com.pander.kafka;
 
 import java.util.Properties;
 
-import org.apache.kafka.clients.producer.Callback;
-import org.apache.kafka.clients.producer.KafkaProducer;
-import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.clients.producer.RecordMetadata;
+import cn.com.pander.kafka.util.HashPartitioner;
+import kafka.javaapi.producer.Producer;
+import kafka.producer.KeyedMessage;
+import kafka.producer.ProducerConfig;
+import kafka.serializer.StringEncoder;
 
 /**
  * 模拟生产上向kafka写数据过程
@@ -14,72 +15,53 @@ import org.apache.kafka.clients.producer.RecordMetadata;
  */
 public class SessionInfoProducer {
 	
-	public static void main(String[] args) {
-		//消息发送模式
-		boolean isAsync = args.length == 0
-				|| !args[0].trim().equalsIgnoreCase("sync");
-		Properties properties=new Properties();
-		properties.put("bootstrap.servers","master:9092" );
-		properties.put("client.id", "SessionInfoProducer");
-		properties.put("key.serializer", "org.apache.kafka.common.serialization.IntegerSerializer");
-		properties.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
-		
-		//配置生产者
-		KafkaProducer<Integer, String> producer=
-				new KafkaProducer<>(properties);
-		String topic="testData";
-		int message_key=1;
-		while(true) 
-		{
-			 String messageValue = "Message_" + message_key;
-	            long startTime = System.currentTimeMillis();
-	            if (isAsync) {
-	                ProducerRecord<Integer, String> record = new ProducerRecord<>(topic, message_key, messageValue);
-	                producer.send(record, new ProducerCallBack<>(startTime, message_key, messageValue));
-	            } else {
-	                ProducerRecord<Integer, String> producerRecord = new ProducerRecord<>(topic, message_key, messageValue);
-	                try {
-	                    RecordMetadata recordMetadata = producer.send(producerRecord).get();
-	                    System.out.println("----------------"+recordMetadata.partition());
-	                } catch (Exception e) {
-	                    throw new RuntimeException(e);
-	                }
-	            }
-	            message_key++;
-		}
-		
-	}
-
-}
-
-class ProducerCallBack<K,V> implements Callback
-{
-	private final long startTime;
-	private final K key;
-	private final V value;
+	  static private final String TOPIC = "topic_test";
+	  static private final String ZOOKEEPER = "master:2181";
+	  static private final String BROKER_LIST = "master:9092";
+	  static private final int PARTITIONS = 3;
 	
-	
+	  public static void main(String[] args) throws Exception {
+		    Producer<String, String> producer = initProducer();
+		    sendOne(producer, TOPIC);
+		  }
 
-	public ProducerCallBack(long startTime, K key, V value) {
-		this.startTime = startTime;
-		this.key = key;
-		this.value = value;
-	}
+		  private static Producer<String, String> initProducer() {
+		    Properties props = new Properties();
+		    props.put("metadata.broker.list", BROKER_LIST);
+		    // props.put("serializer.class", "kafka.serializer.StringEncoder");
+		    props.put("serializer.class", StringEncoder.class.getName());
+		    props.put("partitioner.class", HashPartitioner.class.getName());
+		    // props.put("partitioner.class", "kafka.producer.DefaultPartitioner");
+//		    props.put("compression.codec", "0");
+		    props.put("producer.type", "async");
+		    props.put("batch.num.messages", "3");
+		    props.put("queue.buffer.max.ms", "10000000");
+		    props.put("queue.buffering.max.messages", "1000000");
+		    props.put("queue.enqueue.timeout.ms", "20000000");
 
+		    ProducerConfig config = new ProducerConfig(props);
+		    Producer<String, String> producer = new Producer<String, String>(config);
+		    return producer;
+		  }
 
-
-	@Override
-	public void onCompletion(RecordMetadata metadata, Exception exception) 
-	{
-	     if(metadata != null) 
-	     {
-	    	 long elapsedTime = System.currentTimeMillis() - startTime;
-	            System.out.println("message(" + key + "," + value + ") send to partition("
-	                    + metadata.partition() + ")," + "offset(" + metadata.offset() + ") in" + elapsedTime);
-	     }	
-	     else
-	     exception.printStackTrace();
-	}
+		  public static void sendOne(Producer<String, String> producer, String topic) throws InterruptedException {
+		    KeyedMessage<String, String> message1 = new KeyedMessage<String, String>(topic, "31", "test 31");
+		    producer.send(message1);
+		    Thread.sleep(5000);
+		    KeyedMessage<String, String> message2 = new KeyedMessage<String, String>(topic, "31", "test 32");
+		    producer.send(message2);
+		    Thread.sleep(5000);
+		    KeyedMessage<String, String> message3 = new KeyedMessage<String, String>(topic, "31", "test 33");
+		    producer.send(message3);
+		    Thread.sleep(5000);
+		    KeyedMessage<String, String> message4 = new KeyedMessage<String, String>(topic, "31", "test 34");
+		    producer.send(message4);
+		    Thread.sleep(5000);
+		    KeyedMessage<String, String> message5 = new KeyedMessage<String, String>(topic, "31", "test 35");
+		    producer.send(message5);
+		    Thread.sleep(5000);
+		    producer.close();
+		  }
 }
 
 
