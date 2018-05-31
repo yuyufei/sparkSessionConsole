@@ -15,7 +15,7 @@ import kafka.serializer.StringEncoder;
  */
 public class SessionInfoProducer {
 	
-	  static private final String TOPIC = "topic_test";
+	  static private final String TOPIC = "testData";
 	  static private final String ZOOKEEPER = "master:2181";
 	  static private final String BROKER_LIST = "master:9092";
 	  static private final int PARTITIONS = 3;
