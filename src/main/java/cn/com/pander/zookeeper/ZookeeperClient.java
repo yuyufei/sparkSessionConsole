@@ -20,8 +20,9 @@ public class ZookeeperClient {
 					client= CuratorFrameworkFactory.builder()
 							.connectString("master:2181,slave1:2181,slave2:2181")
 				            .sessionTimeoutMs(10000).retryPolicy(retryPolicy)
-				            .namespace("base").build();
+				            .namespace("Lock").build();
 					client.start();
+					System.out.println(client.toString());
 					return client;
 				}
 			}
