@@ -29,16 +29,15 @@ public class WordCountTopology {
 		properties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 		
 		TopologyBuilder builder=new TopologyBuilder();
-		builder.addSource("SOURCE", new StringDeserializer(),new StringDeserializer(),"testData")
-		.addProcessor("WordCountProcessor",WordCountProcessor :: new, "SOURCE")
+		builder.addSource("Source", new StringDeserializer(),new StringDeserializer(),"onlyYou")
+		.addProcessor("WordCountProcessor",new WordCountProcessor(), "Source")
 		.addStateStore(Stores.create("Counts").withStringKeys().withIntegerValues().inMemory().build(), "WordCountProcessor")
-		.addSink("SINK", "count", new StringSerializer(),new IntegerSerializer(),"WordCountProcessor");
+		.addSink("Sink", "count", new StringSerializer(),new IntegerSerializer(),"WordCountProcessor");
 		
 		KafkaStreams streams=new KafkaStreams(builder, properties);
 		streams.start();
-		System.in.read();
-		streams.close();
-		streams.cleanUp();
+//		streams.close();
+//		streams.cleanUp();
 	}
 
 }

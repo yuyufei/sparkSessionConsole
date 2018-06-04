@@ -19,7 +19,7 @@ public class SessionInfoConsumer {
 	 * @param args
 	 */
 	  public static void main(String[] args) {
-	     args = new String[]{"192.168.189.128:2181", "testData", "group1", "consumer1"};
+	     args = new String[]{"192.168.189.128:2181", "count", "group1", "consumer1"};
 	    if (args == null || args.length != 4) {
 	      System.err.print(
 	          "Usage:\n\tjava -jar kafka_consumer.jar ${zookeeper_list} ${topic_name} ${group_name} ${consumer_id}");
