@@ -16,6 +16,15 @@ import org.apache.curator.framework.recipes.cache.PathChildrenCache.StartMode;
 import org.apache.log4j.Logger;
 import org.apache.zookeeper.CreateMode;
 
+/**
+ * zookeeper分布式锁初步实现：分为独占锁和共享锁
+ * 独占锁实现思路：在独占锁目录下创建临时节点lock，能创建成功则获得锁，创建失败则轮询等待，监听等待别的虚拟机释放临时节点
+ * 共享锁实现思路：在共享锁目录下创建临时的有序节点，这一步没有限制，都会成功，然后将共享锁目录下的子节点按顺序放置到集合中，判断
+ * 第一个节点如果就是当前节点，那么直接获取锁。如果第一个节点是写锁的话，那就直接等待，然后添加一个监控。继续判断其他节点，如果
+ * 判断前面有写锁的话，还是会添加一个监听，并且等待获得锁。
+ * @author fly
+ *
+ */
 public class ZookeeperLock {
 	private static CuratorFramework client = ZookeeperClient.getInsatnce();
 	private static Logger log = Logger.getLogger(ZookeeperLock.class);
@@ -57,7 +66,7 @@ public class ZookeeperLock {
 				return ;
 			} catch (Exception e) {
 				e.printStackTrace();
-				log.info("获得锁失败");
+				log.info("获得锁失败,等待ing");
 				try {
 					if(exclusive.getCount()<=0) 
 						exclusive=new CountDownLatch(1);
@@ -71,9 +80,9 @@ public class ZookeeperLock {
 	}
 	
 	/**
-	 * 尝试获得共享锁
+	 * 共享锁创建临时目录
 	 * @param type
-	 * @param identity
+	 * @param identity:身份
 	 * @return
 	 */
 	public static boolean getSharedLock(int type,String identity) 
@@ -81,9 +90,9 @@ public class ZookeeperLock {
 		if(identity == null || "".equals(identity))
 			throw new RuntimeException("identity is null");
 		if(identity.indexOf("-")!=-1)
-			throw new RuntimeException();
+			throw new RuntimeException("identity 不能包含 - ");
 		if(type != 0 && type!=1)
-			throw new RuntimeException();
+			throw new RuntimeException("type 只能为0 或者 1");
 		String nodeName =null;
 		if(type ==0)
 			nodeName="R"+identity+"-";
@@ -94,23 +103,29 @@ public class ZookeeperLock {
 		{
 			selfNodeName=client.create().creatingParentsIfNeeded().withMode(CreateMode.EPHEMERAL_SEQUENTIAL)
 					.forPath("/SharedLock/"+nodeName);
+			log.info("创建节点："+selfNodeName);
+			List<String> lockChildren=client.getChildren().forPath("/SharedLock");
+			//判断是否能得到锁，不能则等待
+			if(!canGetLock(lockChildren, type, nodeName.substring(0, nodeName.length()-1), false))
+				shared.await();
 		}catch(Exception e) 
 		{
 			e.printStackTrace();
 			return false;
 		}
+		log.info("获得锁");
 		return true;
 	}
 	
 	/**
-	 * 对共享锁的操作
+	 * 判断是否能得到锁
 	 * @param children
 	 * @param type
-	 * @param identity
+	 * @param identity：R+ip
 	 * @param reps
 	 * @return
 	 */
-	private static boolean getLock(List<String> children,int type,String identity,boolean reps) 
+	private static boolean canGetLock(List<String> children,int type,String identity,boolean reps) 
 	{
 		boolean res =false;
 		if(children.size()<=0)
@@ -123,7 +138,9 @@ public class ZookeeperLock {
 			for(String child : children) 
 			{
 				String[] splits=child.split("-");
+				//存放seq
 				seqs.add(splits[1]);
+				//存放seq，R+ip
 				seq_identitys.put(splits[1], splits[0]);
 				if(identity.equals(splits[0]))
 					currentSeq=splits[1];
@@ -131,6 +148,7 @@ public class ZookeeperLock {
 			List<String> sortSeqs=new ArrayList<>();
 			sortSeqs.addAll(seqs);
 			Collections.sort(sortSeqs);
+			//判断第一个节点就是自己新创建的这个节点
 			if(currentSeq.equals(sortSeqs.get(0))) 
 			{
 				res =true;
@@ -138,6 +156,7 @@ public class ZookeeperLock {
 			}
 			else 
 			{
+				//如果不是第一个，那么写锁一定会失败，在共享锁上加个监控
 				if(type==1) 
 				{
 					res =false;
@@ -146,6 +165,7 @@ public class ZookeeperLock {
 					return res;
 				}
 			}
+			//判断读锁前面是否有写锁的存在
 			boolean hasw=true;
 			for(String seq : sortSeqs) 
 			{
@@ -158,6 +178,7 @@ public class ZookeeperLock {
 				res =true;
 			else if(type==0&&hasw==true)
 				res=false;
+			//前面有写锁也会加一个监听，等待可以执行的那一天....
 			if(res==false)
 				addChildWatcher("/SharedLock");
 		}catch(Exception e) 
@@ -189,20 +210,20 @@ public class ZookeeperLock {
                 	System.out.println("子节点 : "+path+" 被移除");
                 	if(path.contains("/ExclusiveLock")) 
                 	{
-                		log.debug("独占锁");
+                		log.debug("释放独占锁");
                 		exclusive.countDown();
                 	}else if(path.contains("/SharedLock")) 
                 	{
-                		log.debug("共享锁");
+                		log.debug("共享锁节点"+selfIdentity+"被移除");
                 		if(path.contains(selfIdentity))
                 			return;
                 		List<String> lockChildren=client.getChildren().forPath("/SharedLock");
                 		boolean isLock =false;
                 		if(selfIdentity.startsWith("R"))
-                			isLock=getLock(lockChildren, 0, selfIdentity.substring(0, selfIdentity.length()-1), true);
+                			isLock=canGetLock(lockChildren, 0, selfIdentity.substring(0, selfIdentity.length()-1), true);
                 		else if(selfIdentity.startsWith("W"))
-                			isLock=getLock(lockChildren, 1, selfIdentity.substring(0,selfIdentity.length()-1), true);
-                		log.info("是否获得锁"+isLock);
+                			isLock=canGetLock(lockChildren, 1, selfIdentity.substring(0,selfIdentity.length()-1), true);
+                		log.info("是否释放锁"+isLock);
                 		if(isLock)
                 			shared.countDown();
                 	}
